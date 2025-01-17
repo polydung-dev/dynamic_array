@@ -33,11 +33,32 @@ void da_destroy(da_type* da) {
 	free(da);
 }
 
+void da_assign(da_type* da, void* ptr, size_t sz) {
+	if (da->data != NULL) {
+		da_clear(da);
+	}
+
+	if (sz >= da->capacity) {
+		da_reserve(da, sz * da->elem_size);
+	}
+
+	memcpy(da->data, ptr, sz * da->elem_size);
+	da->size = sz;
+}
+
 /*///////////////////////////////////////////////////////////////////////////*/
 /* Element Access                                                            */
 /*///////////////////////////////////////////////////////////////////////////*/
 
-void* da_data(da_type* da) {
+void* da_at(da_type* da, size_t index) {
+	if (index >= da->size) {
+		return NULL;
+	}
+
+	return (char*)da->data + (index * da->elem_size);
+}
+
+void* da_front(da_type* da) {
 	return da->data;
 }
 
@@ -45,16 +66,24 @@ void* da_back(da_type* da) {
 	return (char*)da->data + ((da->size - 1) * da->elem_size);
 }
 
+void* da_data(da_type* da) {
+	return da->data;
+}
+
 /*///////////////////////////////////////////////////////////////////////////*/
 /* Capacity                                                                  */
 /*///////////////////////////////////////////////////////////////////////////*/
 
-size_t da_capacity(da_type* da) {
-	return da->capacity;
+bool da_empty(da_type* da) {
+	return da->size == 0;
 }
 
 size_t da_size(da_type* da) {
 	return da->size;
+}
+
+size_t da_capacity(da_type* da) {
+	return da->capacity;
 }
 
 void da_reserve(da_type* da, size_t new_cap) {
@@ -66,15 +95,52 @@ void da_reserve(da_type* da, size_t new_cap) {
 /* Modifiers                                                                 */
 /*///////////////////////////////////////////////////////////////////////////*/
 
+void da_clear(da_type* da) {
+	free(da->data);
+	da->data = NULL;
+	da->size = 0;
+}
 
-void da_append(da_type* da, void* value) {
+void da_insert(da_type* da, size_t index, void* value) {
+	void* src = NULL;
 	void* dst = NULL;
+	size_t sz = 0;
 
+	/* reserve as required */
 	if (da->size == da->capacity) {
 		da_reserve(da, da->capacity * DA_SCALE_FACTOR + DA_BIAS);
 	}
 
-	dst = (char*)da->data + (da->size * da->elem_size);
+	/* shift elements up */
+	if (index <= da->size) {
+		dst = (char*)da->data + ((index + 1) * da->elem_size);
+		src = (char*)da->data + (index * da->elem_size);
+		sz = (da->size - index) * da->elem_size;
+		memmove(dst, src, sz);
+	}
+
+	/* insert new elements */
+	dst = (char*)da->data + (index * da->elem_size);
 	memcpy(dst, value, da->elem_size);
 	++da->size;
+}
+
+void da_erase(da_type* da, size_t index) {
+	void* src = NULL;
+	void* dst = NULL;
+	size_t sz = 0;
+
+	/* shift elements down */
+	if (index <= da->size) {
+		dst = (char*)da->data + (index * da->elem_size);
+		src = (char*)da->data + ((index + 1) * da->elem_size);
+		sz = (da->size - (index + 1)) * da->elem_size;
+
+		memmove(dst, src, sz);
+	}
+
+	/* delete last element */
+	/* dst = (char*)da->data + ((da->size - 1) * da->elem_size);
+	memset(dst, 0, da->elem_size); */
+	--da->size;
 }

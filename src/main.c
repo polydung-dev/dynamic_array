@@ -24,7 +24,17 @@ do {                                                                          \
 
 #define da_append_literal(da, val, type) da_append(da, &(type){val})
 
+void test_1(void);
+void test_2(void);
+
 int main(void) {
+	test_1();
+	test_2();
+
+	return 0;
+}
+
+void test_1(void) {
 	da_type* da = da_create(sizeof(int));
 	DEBUG_DUMP(da);
 	PRINT_ARRAY(da, "%i", int);
@@ -46,6 +56,34 @@ int main(void) {
 	printf("last element == %i\n", last);
 
 	da_destroy(da);
+}
 
-	return 0;
+void test_2(void) {
+	da_type* da = da_create(sizeof(char));
+
+	da_assign(da, &(char[3]){'S', 'P', 'A'}, sizeof(char[3]));;
+	DEBUG_DUMP(da);
+	PRINT_ARRAY(da, "%c", char);
+
+	da_insert(da, da_size(da), &(char){'M'});
+	DEBUG_DUMP(da);
+	PRINT_ARRAY(da, "%c", char);
+
+	*(char*)da_back(da) = 'S';
+	DEBUG_DUMP(da);
+	PRINT_ARRAY(da, "%c", char);
+
+	da_append(da, da_front(da));
+	DEBUG_DUMP(da);
+	PRINT_ARRAY(da, "%c", char);
+
+	*(char*)da_front(da) = 'P';
+	DEBUG_DUMP(da);
+	PRINT_ARRAY(da, "%c", char);
+
+	da_erase(da, 1);
+	DEBUG_DUMP(da);
+	PRINT_ARRAY(da, "%c", char);
+
+	da_destroy(da);
 }
