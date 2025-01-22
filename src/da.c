@@ -6,13 +6,6 @@
 #define DA_SCALE_FACTOR 1.5
 #define DA_BIAS 1
 
-struct DynamicArray {
-	void* data;
-	size_t size;
-	size_t capacity;
-	size_t elem_size;
-};
-
 /*///////////////////////////////////////////////////////////////////////////*/
 /* DynamicArray                                                              */
 /*///////////////////////////////////////////////////////////////////////////*/
@@ -33,7 +26,7 @@ void da_destroy(da_type* da) {
 	free(da);
 }
 
-void da_assign(da_type* da, void* ptr, size_t sz) {
+void da_assign_(da_type* da, void* arr, size_t sz) {
 	if (da->data != NULL) {
 		da_clear(da);
 	}
@@ -42,7 +35,7 @@ void da_assign(da_type* da, void* ptr, size_t sz) {
 		da_reserve(da, sz * da->elem_size);
 	}
 
-	memcpy(da->data, ptr, sz * da->elem_size);
+	memcpy(da->data, arr, sz * da->elem_size);
 	da->size = sz;
 }
 
@@ -50,7 +43,11 @@ void da_assign(da_type* da, void* ptr, size_t sz) {
 /* Element Access                                                            */
 /*///////////////////////////////////////////////////////////////////////////*/
 
-void* da_at(da_type* da, size_t index) {
+void* da_data_(da_type* da) {
+	return da->data;
+}
+
+void* da_at_(da_type* da, size_t index) {
 	if (index >= da->size) {
 		return NULL;
 	}
@@ -58,31 +55,15 @@ void* da_at(da_type* da, size_t index) {
 	return (char*)da->data + (index * da->elem_size);
 }
 
-void* da_front(da_type* da) {
-	return da->data;
-}
-
-void* da_back(da_type* da) {
-	return (char*)da->data + ((da->size - 1) * da->elem_size);
-}
-
-void* da_data(da_type* da) {
-	return da->data;
-}
-
 /*///////////////////////////////////////////////////////////////////////////*/
 /* Capacity                                                                  */
 /*///////////////////////////////////////////////////////////////////////////*/
 
-bool da_empty(da_type* da) {
-	return da->size == 0;
-}
-
-size_t da_size(da_type* da) {
+size_t da_size_(da_type* da) {
 	return da->size;
 }
 
-size_t da_capacity(da_type* da) {
+size_t da_capacity_(da_type* da) {
 	return da->capacity;
 }
 
@@ -95,13 +76,13 @@ void da_reserve(da_type* da, size_t new_cap) {
 /* Modifiers                                                                 */
 /*///////////////////////////////////////////////////////////////////////////*/
 
-void da_clear(da_type* da) {
+void da_clear_(da_type* da) {
 	free(da->data);
 	da->data = NULL;
 	da->size = 0;
 }
 
-void da_insert(da_type* da, size_t index, void* value) {
+void da_insert_(da_type* da, size_t index, void* value) {
 	void* src = NULL;
 	void* dst = NULL;
 	size_t sz = 0;
@@ -125,7 +106,7 @@ void da_insert(da_type* da, size_t index, void* value) {
 	++da->size;
 }
 
-void da_erase(da_type* da, size_t index) {
+void da_erase_(da_type* da, size_t index) {
 	void* src = NULL;
 	void* dst = NULL;
 	size_t sz = 0;

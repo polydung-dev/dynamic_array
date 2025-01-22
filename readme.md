@@ -38,3 +38,21 @@ that the pointer being passed to these functions is a pointer to a valid
 object.
 
 If either of these assumptions are false, the program will fail.
+
+## Macro Wrappers
+
+Type casting can be managed with macros which wrap the functions, thanks to
+`__typeof__()`. I believe that this is a compiler extension, however, every
+compiler that I have tried (`gcc`, `clang`, `tcc`, `zig cc`) supports this and
+a C compiler _must_ be able to deduce types in order to implement `sizeof`.
+
+Now, `da_back()` can be implemented using a simple array access instead of
+manual pointer arithmetic.
+
+Some functions (such as `da_size`) are implemented as wrappers around the
+original function as this will result in an `r-value` and prevent the value
+from being directly modified.
+
+Note: This moves the "type erasure" from the underlying array to the dynamic
+array object itself. Passing a pointer to something that is not a dynamic array
+will result in an error.
