@@ -7,79 +7,188 @@
 #define DA_SCALE_FACTOR 1.5
 #define DA_BIAS 8
 
+#define da_var_size(da) ((size_t*)(da))[-1]
+#define da_var_capacity(da) ((size_t*)(da))[-2]
+
+#define da_head_to_data(p) (size_t*)(p) + 2
+#define da_data_to_head(p) (size_t*)(p) - 2
+
 /*///////////////////////////////////////////////////////////////////////////*/
 /* DynamicArray                                                              */
 /*///////////////////////////////////////////////////////////////////////////*/
 
-void* da_init(size_t elem_size) {
+void* da_init(size_t sz) {
 	void* tmp = NULL;
-	size_t cap = DA_INITIAL_CAP;
-	size_t size = 0;
 
-	tmp = malloc(2*sizeof(size_t) + DA_INITIAL_CAP*elem_size);
+	if (sz == 0) {
+		return NULL;
+	}
+
+	tmp = malloc(2*sizeof(size_t) + DA_INITIAL_CAP*sz);
 	if (tmp == NULL) {
 		return NULL;
 	}
-	memcpy(tmp, &cap, sizeof(size_t));
-	memcpy((size_t*)tmp + 1, &size, sizeof(size_t));
 
-	return (size_t*)tmp + 2;
+	tmp = da_head_to_data(tmp);
+	da_var_size(tmp) = 0;
+	da_var_capacity(tmp) = DA_INITIAL_CAP;
+
+	return tmp;
 }
 
-void da_free(void* arr) {
-	free((size_t*)arr - 2);
+void da_free_(void* da) {
+	if (da == NULL) {
+		return;
+	}
+
+	free(da_data_to_head(da));
+}
+
+void da_assign_(void** da, void* src, size_t cnt, size_t sz) {
+	if (*da == NULL) {
+		*da = da_init(sz);
+	}
+
+	if (cnt >= da_capacity(*da)) {
+		da_reserve_(da, cnt, sz);
+	}
+
+	memcpy(*da, src, cnt * sz);
+	da_var_size(*da) = cnt;
 }
 
 /*///////////////////////////////////////////////////////////////////////////*/
 /* Element Access                                                            */
 /*///////////////////////////////////////////////////////////////////////////*/
 
+void* da_at_(void* da, size_t idx, size_t sz) {
+	if (da == NULL) {
+		return NULL;
+	}
+
+	if (idx >= da_size(da)) {
+		return NULL;
+	}
+
+	return (char*)da + (idx * sz);
+}
+
 /*///////////////////////////////////////////////////////////////////////////*/
 /* Capacity                                                                  */
 /*///////////////////////////////////////////////////////////////////////////*/
 
-size_t da_size_(void* arr) {
-	if (arr == NULL) { return 0; }
+size_t da_size_(void* da) {
+	if (da == NULL) {
+		return 0;
+	}
 
-	return ((size_t*)(arr))[-1];
+	return da_var_size(da);
 }
 
-size_t da_capacity_(void* arr) {
-	if (arr == NULL) { return 0; }
+size_t da_capacity_(void* da) {
+	if (da == NULL) {
+		return 0;
+	}
 
-	return ((size_t*)(arr))[-2];
+	return da_var_capacity(da);
 }
 
-void da_reserve_(void** arr, size_t count, size_t elem_size) {
+void da_reserve_(void** da, size_t cnt, size_t sz) {
 	void* tmp;
 	size_t new_size;
 
-	if (*arr == NULL) { *arr = da_init(elem_size); }
+	if (*da == NULL) {
+		*da = da_init(sz);
+	}
 
-	new_size = count * elem_size + (2 * sizeof(size_t));
-	tmp = realloc((size_t*)(*arr) - 2, new_size);
+	new_size = cnt * sz + (2 * sizeof(size_t));
+	tmp = realloc(da_data_to_head(*da), new_size);
 	if (tmp == NULL) {
 		return;
 	}
-	memcpy(tmp, &count, sizeof(size_t));
-	*arr = (size_t*)tmp + 2;
+	*da = da_head_to_data(tmp);
+	da_var_capacity(*da) = cnt;
 }
 
 /*///////////////////////////////////////////////////////////////////////////*/
 /* Modifiers                                                                 */
 /*///////////////////////////////////////////////////////////////////////////*/
 
-void da_append_(void** arr, void* value, size_t elem_size) {
-	void* dst;
-
-	if (*arr == NULL) { *arr = da_init(elem_size); }
-
-	if (da_size(*arr) == da_capacity(*arr)) {
-		size_t count = da_capacity(*arr) * DA_SCALE_FACTOR + DA_BIAS;
-		da_reserve_(arr, count, elem_size);
+void da_clear_(void* da) {
+	if (da == NULL) {
+		return;
 	}
 
-	dst = (char*)*arr + elem_size * da_size(*arr);
-	memcpy(dst, value, elem_size);
-	++(((size_t*)(*arr))[-1]);
+	da_var_size(da) = 0;
+}
+
+void da_insert_(void** da, size_t idx, void* val, size_t sz) {
+	void* dst;
+	void* src;
+
+	if (*da == NULL) {
+		*da = da_init(sz);
+	}
+
+	if (idx >= da_capacity(*da)) {
+		return;
+	}
+
+	if (da_size(*da) == da_capacity(*da)) {
+		size_t cnt = da_capacity(*da) * DA_SCALE_FACTOR + DA_BIAS;
+		da_reserve_(da, cnt, sz);
+	}
+
+	/* shift elements */
+	if (idx <= da_size(*da)) {
+		dst = (char*)*da + sz * (idx + 1);
+		src = (char*)*da + sz * idx;
+		memmove(dst, src, (da_size(*da) - idx) * sz);
+	}
+
+	dst = (char*)*da + sz * idx;
+	memcpy(dst, val, sz);
+	++(da_var_size(*da));
+}
+
+void da_erase_(void** da, size_t idx, size_t sz) {
+	void* dst;
+	void* src;
+
+	if (*da == NULL) {
+		return;
+	}
+
+	if (idx >= da_size(*da)) {
+		return;
+	}
+
+	if (da_size(*da) == da_capacity(*da)) {
+		size_t cnt = da_capacity(*da) * DA_SCALE_FACTOR + DA_BIAS;
+		da_reserve_(da, cnt, sz);
+	}
+
+	/* shift elements */
+	if (idx <= da_size(*da)) {
+		dst = (char*)*da + sz * idx;
+		src = (char*)*da + sz * (idx + 1);
+		memmove(dst, src, (da_size(*da) - (idx + 1)) * sz);
+	}
+
+	--(da_var_size(*da));
+}
+
+void da_append_(void** da, void* val, size_t sz) {
+	void* dst;
+
+	if (*da == NULL) { *da = da_init(sz); }
+
+	if (da_size(*da) == da_capacity(*da)) {
+		size_t cnt = da_capacity(*da) * DA_SCALE_FACTOR + DA_BIAS;
+		da_reserve_(da, cnt, sz);
+	}
+
+	dst = (char*)*da + sz * da_size(*da);
+	memcpy(dst, val, sz);
+	++(da_var_size(*da));
 }
