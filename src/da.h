@@ -64,10 +64,10 @@ void* da_init(size_t sz);
  */
 #define da_free(da)                                                           \
 do {                                                                          \
-	da_free_(da);                                                         \
+	da_free_(da, sizeof(*(da)));                                          \
 	(da) = NULL;                                                          \
 } while (0)
-void da_free_(void* da);
+void da_free_(void* da, size_t sz);
 
 /**
  * Copies `cnt` elements from the `src` array.
@@ -85,7 +85,7 @@ void da_free_(void* da);
  */
 #define da_assign(da, src, cnt)                                               \
 do {                                                                          \
-	__typeof__((da)) tmp = src;                                           \
+	__typeof__((da)) tmp = (src);                                         \
 	da_assign_((void**)&(da), tmp, cnt, sizeof(*tmp));                    \
 } while (0)
 void da_assign_(void** da, void* src, size_t cnt, size_t sz);
@@ -118,8 +118,7 @@ void da_assign_(void** da, void* src, size_t cnt, size_t sz);
  * @returns	on success	a pointer to an element in the array
  * @returns	on failure	`NULL`
  */
-#define da_at(da, idx) \
-	(__typeof__(da))da_at_((void*)(da), idx, sizeof(*da))
+#define da_at(da, idx) (__typeof__(da))da_at_(da, idx, sizeof(*(da)))
 void* da_at_(void* da, size_t idx, size_t sz);
 
 /*///////////////////////////////////////////////////////////////////////////*/
@@ -163,8 +162,7 @@ size_t da_capacity_(void* da);
  * **Errors**
  * - ENOMEM: Out of memory; set via `realloc`.
  */
-#define da_reserve(da, cnt) \
-	da_reserve_((void**)&(da), cnt, sizeof(*da))
+#define da_reserve(da, cnt) da_reserve_((void**)&(da), cnt, sizeof(*(da)))
 void da_reserve_(void** da, size_t cnt, size_t sz);
 
 /*///////////////////////////////////////////////////////////////////////////*/
@@ -178,7 +176,7 @@ void da_reserve_(void** da, size_t cnt, size_t sz);
  *
  * @param	da	a valid `data pointer` (MAY be `NULL`)
  */
-#define da_clear(da) da_clear_((void*)(da))
+#define da_clear(da) da_clear_(da)
 void da_clear_(void* da);
 
 /**
@@ -200,7 +198,7 @@ void da_clear_(void* da);
  */
 #define da_insert(da, idx, val)                                               \
 do {                                                                          \
-	__typeof__(*da) tmp = val;                                            \
+	__typeof__(*(da)) tmp = (val);                                        \
 	da_insert_((void**)&(da), idx, &tmp, sizeof(tmp));                    \
 } while (0)
 void da_insert_(void** da, size_t idx, void* val, size_t sz);
@@ -214,7 +212,7 @@ void da_insert_(void** da, size_t idx, void* val, size_t sz);
  * @param	da	a valid `data pointer` (MAY be `NULL`)
  * @param	idx	index into the array
  */
-#define da_erase(da, idx) da_erase_((void**)&(da), idx, sizeof(*da))
+#define da_erase(da, idx) da_erase_((void**)&(da), idx, sizeof(*(da)))
 void da_erase_(void** da, size_t idx, size_t sz);
 
 /**
@@ -232,8 +230,8 @@ void da_erase_(void** da, size_t idx, size_t sz);
  */
 #define da_append(da, val)                                                    \
 do {                                                                          \
-	__typeof__(*da) tmp = val;                                            \
-	da_append_((void**)&da, &tmp, sizeof(tmp));                           \
+	__typeof__(*(da)) tmp = (val);                                        \
+	da_append_((void**)&(da), &tmp, sizeof(tmp));                         \
 } while (0)
 void da_append_(void** da, void* val, size_t sz);
 

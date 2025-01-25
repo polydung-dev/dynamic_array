@@ -2,6 +2,7 @@ warnings=-Wall -Wextra
 sanitize=-fsanitize=address,undefined,leak
 CFLAGS=$(warnings) $(sanitize) -g3 -O3 -MMD
 LDFLAGS=$(sanitize)
+LDLIBS=-lm
 
 # zig cc requires manual linking, but this seems to break gcc???
 ifeq ($(CC), zig cc)

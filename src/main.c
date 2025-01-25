@@ -31,11 +31,13 @@ int64_t sum_array(int* arr, size_t count);
 void test_1(void);
 void test_2(void);
 void test_3(void);
+void test_4(void);
 
 int main(void) {
 	test_1();
 	test_2();
 	test_3();
+	test_4();
 
 	return 0;
 }
@@ -218,4 +220,33 @@ void test_3(void) {
 
 	printf("\n");
 	da_free(arr);
+}
+
+#define align_test(type)                                                      \
+do {                                                                          \
+	type* arr = NULL;                                                     \
+	da_append(arr, 1);                                                    \
+	type x = *da_at(arr, 0);                                              \
+	(void)x;                                                              \
+	da_free(arr);                                                         \
+} while (0)
+
+void test_4(void) {
+	printf("== Test 4 : Alignment. ===================================\n");
+	printf("\n");
+	printf("If compiled/linked with UBSan, an error message will show.\n");
+	printf("\n");
+
+	printf("-- char; -------------------------------------------------\n");
+	align_test(char);
+	printf("-- short; ------------------------------------------------\n");
+	align_test(short);
+	printf("-- int; --------------------------------------------------\n");
+	align_test(int);
+	printf("-- long; -------------------------------------------------\n");
+	align_test(long);
+	printf("-- long long; --------------------------------------------\n");
+	align_test(long long);
+	printf("-- long double; ------------------------------------------\n");
+	align_test(long double);
 }

@@ -2,16 +2,36 @@
 
 #include <string.h>
 #include <stdlib.h>
+#include <math.h>
 
 #define DA_INITIAL_CAP 2
 #define DA_SCALE_FACTOR 1.5
 #define DA_BIAS 8
 
+/*///////////////////////////////////////////////////////////////////////////*/
+/* Header / metadata stuff (internal)                                        */
+/*///////////////////////////////////////////////////////////////////////////*/
+
+/* will probably work in the vast majority of cases */
+/* #define header_size(sz) ((void)sz, 16) */
+
+/* ensure natural alignment, may be overkill */
+static size_t header_size(size_t sz) {
+	/* minimum space for size + capacity */
+	size_t min_head = (2 * sizeof(size_t));
+
+	/* header is smaller than natural alignment, avoid maths? */
+	if (min_head <= sz) { return sz; }
+
+	/* minimum multiple greater than the header */
+	return ceil(min_head / (double)sz) * sz;
+}
+
 #define da_var_size(da) ((size_t*)(da))[-1]
 #define da_var_capacity(da) ((size_t*)(da))[-2]
 
-#define da_head_to_data(p) (size_t*)(p) + 2
-#define da_data_to_head(p) (size_t*)(p) - 2
+#define da_head_to_data(p, sz) ((char*)(p) + header_size(sz))
+#define da_data_to_head(p, sz) ((char*)(p) - header_size(sz))
 
 /*///////////////////////////////////////////////////////////////////////////*/
 /* DynamicArray                                                              */
@@ -24,24 +44,24 @@ void* da_init(size_t sz) {
 		return NULL;
 	}
 
-	tmp = malloc(2*sizeof(size_t) + DA_INITIAL_CAP*sz);
+	tmp = malloc(header_size(sz) + DA_INITIAL_CAP * sz);
 	if (tmp == NULL) {
 		return NULL;
 	}
 
-	tmp = da_head_to_data(tmp);
+	tmp = da_head_to_data(tmp, sz);
 	da_var_size(tmp) = 0;
 	da_var_capacity(tmp) = DA_INITIAL_CAP;
 
 	return tmp;
 }
 
-void da_free_(void* da) {
+void da_free_(void* da, size_t sz) {
 	if (da == NULL) {
 		return;
 	}
 
-	free(da_data_to_head(da));
+	free(da_data_to_head(da, sz));
 }
 
 void da_assign_(void** da, void* src, size_t cnt, size_t sz) {
@@ -101,12 +121,12 @@ void da_reserve_(void** da, size_t cnt, size_t sz) {
 		*da = da_init(sz);
 	}
 
-	new_size = cnt * sz + (2 * sizeof(size_t));
-	tmp = realloc(da_data_to_head(*da), new_size);
+	new_size = cnt * sz + header_size(sz);
+	tmp = realloc(da_data_to_head(*da, sz), new_size);
 	if (tmp == NULL) {
 		return;
 	}
-	*da = da_head_to_data(tmp);
+	*da = da_head_to_data(tmp, sz);
 	da_var_capacity(*da) = cnt;
 }
 
