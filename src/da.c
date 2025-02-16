@@ -1,127 +1,214 @@
 #include "da.h"
 
-#include <string.h> /* memcpy */
+#include <string.h>
+#include <stdlib.h>
+#include <math.h>
 
 #define DA_INITIAL_CAP 2
 #define DA_SCALE_FACTOR 1.5
-#define DA_BIAS 1
+#define DA_BIAS 8
+
+/*///////////////////////////////////////////////////////////////////////////*/
+/* Header / metadata stuff (internal)                                        */
+/*///////////////////////////////////////////////////////////////////////////*/
+
+/* will probably work in the vast majority of cases */
+/* #define header_size(sz) ((void)sz, 16) */
+
+/* ensure natural alignment, may be overkill */
+static size_t header_size(size_t sz) {
+	/* minimum space for size + capacity */
+	size_t min_head = (2 * sizeof(size_t));
+
+	/* header is smaller than natural alignment, avoid maths? */
+	if (min_head <= sz) { return sz; }
+
+	/* minimum multiple greater than the header */
+	return ceil(min_head / (double)sz) * sz;
+}
+
+#define da_var_size(da) ((size_t*)(da))[-1]
+#define da_var_capacity(da) ((size_t*)(da))[-2]
+
+#define da_head_to_data(p, sz) ((char*)(p) + header_size(sz))
+#define da_data_to_head(p, sz) ((char*)(p) - header_size(sz))
 
 /*///////////////////////////////////////////////////////////////////////////*/
 /* DynamicArray                                                              */
 /*///////////////////////////////////////////////////////////////////////////*/
 
-da_type* da_create(size_t elem_size) {
-	da_type* da = malloc(sizeof(*da));
+void* da_init(size_t sz) {
+	void* tmp = NULL;
 
-	da->data = malloc(DA_INITIAL_CAP * elem_size);
-	da->size = 0;
-	da->capacity = DA_INITIAL_CAP;
-	da->elem_size = elem_size;
-
-	return da;
-}
-
-void da_destroy(da_type* da) {
-	free(da->data);
-	free(da);
-}
-
-void da_assign_(da_type* da, void* arr, size_t sz) {
-	if (da->data != NULL) {
-		da_clear(da);
+	if (sz == 0) {
+		return NULL;
 	}
 
-	if (sz >= da->capacity) {
-		da_reserve(da, sz * da->elem_size);
+	tmp = malloc(header_size(sz) + DA_INITIAL_CAP * sz);
+	if (tmp == NULL) {
+		return NULL;
 	}
 
-	memcpy(da->data, arr, sz * da->elem_size);
-	da->size = sz;
+	tmp = da_head_to_data(tmp, sz);
+	da_var_size(tmp) = 0;
+	da_var_capacity(tmp) = DA_INITIAL_CAP;
+
+	return tmp;
+}
+
+void da_free_(void* da, size_t sz) {
+	if (da == NULL) {
+		return;
+	}
+
+	free(da_data_to_head(da, sz));
+}
+
+void da_assign_(void** da, void* src, size_t cnt, size_t sz) {
+	if (*da == NULL) {
+		*da = da_init(sz);
+	}
+
+	if (cnt >= da_capacity(*da)) {
+		da_reserve_(da, cnt, sz);
+	}
+
+	memcpy(*da, src, cnt * sz);
+	da_var_size(*da) = cnt;
 }
 
 /*///////////////////////////////////////////////////////////////////////////*/
 /* Element Access                                                            */
 /*///////////////////////////////////////////////////////////////////////////*/
 
-void* da_data_(da_type* da) {
-	return da->data;
-}
-
-void* da_at_(da_type* da, size_t index) {
-	if (index >= da->size) {
+void* da_at_(void* da, size_t idx, size_t sz) {
+	if (da == NULL) {
 		return NULL;
 	}
 
-	return (char*)da->data + (index * da->elem_size);
+	if (idx >= da_size(da)) {
+		return NULL;
+	}
+
+	return (char*)da + (idx * sz);
 }
 
 /*///////////////////////////////////////////////////////////////////////////*/
 /* Capacity                                                                  */
 /*///////////////////////////////////////////////////////////////////////////*/
 
-size_t da_size_(da_type* da) {
-	return da->size;
+size_t da_size_(void* da) {
+	if (da == NULL) {
+		return 0;
+	}
+
+	return da_var_size(da);
 }
 
-size_t da_capacity_(da_type* da) {
-	return da->capacity;
+size_t da_capacity_(void* da) {
+	if (da == NULL) {
+		return 0;
+	}
+
+	return da_var_capacity(da);
 }
 
-void da_reserve(da_type* da, size_t new_cap) {
-	da->data = realloc(da->data, new_cap * da->elem_size);
-	da->capacity = new_cap;
+void da_reserve_(void** da, size_t cnt, size_t sz) {
+	void* tmp;
+	size_t new_size;
+
+	if (*da == NULL) {
+		*da = da_init(sz);
+	}
+
+	new_size = cnt * sz + header_size(sz);
+	tmp = realloc(da_data_to_head(*da, sz), new_size);
+	if (tmp == NULL) {
+		return;
+	}
+	*da = da_head_to_data(tmp, sz);
+	da_var_capacity(*da) = cnt;
 }
 
 /*///////////////////////////////////////////////////////////////////////////*/
 /* Modifiers                                                                 */
 /*///////////////////////////////////////////////////////////////////////////*/
 
-void da_clear_(da_type* da) {
-	free(da->data);
-	da->data = NULL;
-	da->size = 0;
+void da_clear_(void* da) {
+	if (da == NULL) {
+		return;
+	}
+
+	da_var_size(da) = 0;
 }
 
-void da_insert_(da_type* da, size_t index, void* value) {
-	void* src = NULL;
-	void* dst = NULL;
-	size_t sz = 0;
+void da_insert_(void** da, size_t idx, void* val, size_t sz) {
+	void* dst;
+	void* src;
 
-	/* reserve as required */
-	if (da->size == da->capacity) {
-		da_reserve(da, da->capacity * DA_SCALE_FACTOR + DA_BIAS);
+	if (*da == NULL) {
+		*da = da_init(sz);
 	}
 
-	/* shift elements up */
-	if (index <= da->size) {
-		dst = (char*)da->data + ((index + 1) * da->elem_size);
-		src = (char*)da->data + (index * da->elem_size);
-		sz = (da->size - index) * da->elem_size;
-		memmove(dst, src, sz);
+	if (idx >= da_capacity(*da)) {
+		return;
 	}
 
-	/* insert new elements */
-	dst = (char*)da->data + (index * da->elem_size);
-	memcpy(dst, value, da->elem_size);
-	++da->size;
+	if (da_size(*da) == da_capacity(*da)) {
+		size_t cnt = da_capacity(*da) * DA_SCALE_FACTOR + DA_BIAS;
+		da_reserve_(da, cnt, sz);
+	}
+
+	/* shift elements */
+	if (idx <= da_size(*da)) {
+		dst = (char*)*da + sz * (idx + 1);
+		src = (char*)*da + sz * idx;
+		memmove(dst, src, (da_size(*da) - idx) * sz);
+	}
+
+	dst = (char*)*da + sz * idx;
+	memcpy(dst, val, sz);
+	++(da_var_size(*da));
 }
 
-void da_erase_(da_type* da, size_t index) {
-	void* src = NULL;
-	void* dst = NULL;
-	size_t sz = 0;
+void da_erase_(void** da, size_t idx, size_t sz) {
+	void* dst;
+	void* src;
 
-	/* shift elements down */
-	if (index <= da->size) {
-		dst = (char*)da->data + (index * da->elem_size);
-		src = (char*)da->data + ((index + 1) * da->elem_size);
-		sz = (da->size - (index + 1)) * da->elem_size;
-
-		memmove(dst, src, sz);
+	if (*da == NULL) {
+		return;
 	}
 
-	/* delete last element */
-	/* dst = (char*)da->data + ((da->size - 1) * da->elem_size);
-	memset(dst, 0, da->elem_size); */
-	--da->size;
+	if (idx >= da_size(*da)) {
+		return;
+	}
+
+	if (da_size(*da) == da_capacity(*da)) {
+		size_t cnt = da_capacity(*da) * DA_SCALE_FACTOR + DA_BIAS;
+		da_reserve_(da, cnt, sz);
+	}
+
+	/* shift elements */
+	if (idx <= da_size(*da)) {
+		dst = (char*)*da + sz * idx;
+		src = (char*)*da + sz * (idx + 1);
+		memmove(dst, src, (da_size(*da) - (idx + 1)) * sz);
+	}
+
+	--(da_var_size(*da));
+}
+
+void da_append_(void** da, void* val, size_t sz) {
+	void* dst;
+
+	if (*da == NULL) { *da = da_init(sz); }
+
+	if (da_size(*da) == da_capacity(*da)) {
+		size_t cnt = da_capacity(*da) * DA_SCALE_FACTOR + DA_BIAS;
+		da_reserve_(da, cnt, sz);
+	}
+
+	dst = (char*)*da + sz * da_size(*da);
+	memcpy(dst, val, sz);
+	++(da_var_size(*da));
 }
